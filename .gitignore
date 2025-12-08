@@ -1,0 +1,58 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# VS Code
+.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+
+# Android related (BURASI ÇOK ÖNEMLİ)
+**/android/local.properties
+**/android/key.properties
+**/android/*.jks
+**/android/*.keystore
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# iOS related
+**/ios/.generated/
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/app.flx
+**/ios/Flutter/gen_snapshot_resources
+**/ios/ServiceDefinitions.json
+**/ios/Runner/GeneratedPluginRegistrant.*
+
+# Firebase & Secrets (GÜVENLİK İÇİN)
+# Eğer projeniz "Private" (Gizli) olacaksa bunları yükleyebilirsiniz ama
+# "Public" (Herkese açık) yapacaksanız kesinlikle bunları ekleyin:
+google-services.json
+GoogleService-Info.plist
+
+# Exceptions to above rules.
+!/android/app/src/main/AndroidManifest.xml
