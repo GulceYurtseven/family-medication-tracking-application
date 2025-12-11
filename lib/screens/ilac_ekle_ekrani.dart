@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/bildirim_servisi.dart';
-import '../services/zaman_yoneticisi.dart'; // EKLENDİ
+import '../services/zaman_yoneticisi.dart';
 
 class IlacEkleEkrani extends StatefulWidget {
   final String? ilacId;
@@ -24,13 +24,25 @@ class _IlacEkleEkraniState extends State<IlacEkleEkrani> {
   String? _secilenKisi;
   String? _acTokDurumu;
 
-  // ÇOKLU SEÇİM İÇİN LİSTELER
   final List<String> _kisiListesi = ["Dede", "Anane"];
   final List<String> _acTokListesi = ["Aç Karna", "Tok Karna", "Farketmez"];
 
-  // Vakit seçenekleri ve seçilenler
+  // Vakit seçenekleri
   final List<String> _vakitSecenekleri = ["Sabah", "Öğle", "Akşam", "Gece"];
   List<String> _secilenVakitler = [];
+
+  // YENİ: Gün seçenekleri
+  final List<Map<String, dynamic>> _gunSecenekleri = [
+    {"ad": "Pazartesi", "kisa": "Pzt", "icon": Icons.calendar_today},
+    {"ad": "Salı", "kisa": "Sal", "icon": Icons.calendar_today},
+    {"ad": "Çarşamba", "kisa": "Çar", "icon": Icons.calendar_today},
+    {"ad": "Perşembe", "kisa": "Per", "icon": Icons.calendar_today},
+    {"ad": "Cuma", "kisa": "Cum", "icon": Icons.calendar_today},
+    {"ad": "Cumartesi", "kisa": "Cmt", "icon": Icons.calendar_today},
+    {"ad": "Pazar", "kisa": "Paz", "icon": Icons.calendar_today},
+  ];
+  List<String> _secilenGunler = [];
+  bool _herGun = true; // Her gün mi yoksa seçili günler mi?
 
   @override
   void initState() {
@@ -41,9 +53,16 @@ class _IlacEkleEkraniState extends State<IlacEkleEkrani> {
     _secilenKisi = widget.mevcutVeri?['sahibi'];
     _acTokDurumu = widget.mevcutVeri?['kullanim_sekli'];
 
-    // Eğer güncelleme ise kayıtlı vakitleri getir
     if (widget.mevcutVeri != null && widget.mevcutVeri!['vakitler'] != null) {
       _secilenVakitler = List<String>.from(widget.mevcutVeri!['vakitler']);
+    }
+
+    // YENİ: Gün bilgilerini yükle
+    if (widget.mevcutVeri != null) {
+      _herGun = widget.mevcutVeri?['her_gun'] ?? true;
+      if (widget.mevcutVeri!['gunler'] != null) {
+        _secilenGunler = List<String>.from(widget.mevcutVeri!['gunler']);
+      }
     }
   }
 
@@ -54,8 +73,12 @@ class _IlacEkleEkraniState extends State<IlacEkleEkrani> {
         return;
       }
 
+      if (!_herGun && _secilenGunler.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lütfen gün seçin veya "Her Gün" seçeneğini işaretleyin!')));
+        return;
+      }
+
       String ad = _adController.text;
-      // Benzersiz bir ID temeli oluşturuyoruz
       int ilacIdBase = ad.codeUnits.fold(0, (p, c) => p + c);
 
       Map<String, dynamic> veri = {
@@ -65,8 +88,10 @@ class _IlacEkleEkraniState extends State<IlacEkleEkrani> {
         'kullanim_sekli': _acTokDurumu,
         'vakitler': _secilenVakitler,
         'not': _notController.text,
-        'bildirim_id_base': ilacIdBase, // Bu ID'yi veritabanında saklıyoruz
+        'bildirim_id_base': ilacIdBase,
         'tarih': FieldValue.serverTimestamp(),
+        'her_gun': _herGun,
+        'gunler': _herGun ? [] : _secilenGunler, // Her gün ise boş liste
       };
 
       try {
@@ -75,15 +100,10 @@ class _IlacEkleEkraniState extends State<IlacEkleEkrani> {
           veri['icilen_tarihler'] = {};
           await FirebaseFirestore.instance.collection('ilaclar').add(veri);
 
-          // --- YENİ BİLDİRİM MANTIĞI ---
+          // Bildirimleri kur
           for (String vakit in _secilenVakitler) {
-            // 1. Dinamik Saati Al (Ayarlardan)
             TimeOfDay saatAyari = ZamanYoneticisi().saatiGetir(vakit);
-
-            // 2. Ana Vakit Bildirimini Güncelle/Kur (Tekrarlı olması sorun değil, üzerine yazar)
             await BildirimServisi().anaVakitBildirimiKur(vakit, saatAyari.hour, saatAyari.minute);
-
-            // 3. İlaç Bazlı Hatırlatıcıları Kur (15 dk arayla 3 tane)
             await BildirimServisi().hatirlaticiKur(
                 ilacIdBase,
                 ad,
@@ -97,8 +117,7 @@ class _IlacEkleEkraniState extends State<IlacEkleEkrani> {
           if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('İlaç ve Alarmlar Kaydedildi!')));
           _temizle();
         } else {
-          // Güncelleme... (Basitlik adına burada bildirim güncelleme yapmıyoruz,
-          // profesyonel uygulamada eski ID'leri iptal edip yenilerini kurmak gerekir)
+          // GÜNCELLEME
           await FirebaseFirestore.instance.collection('ilaclar').doc(widget.ilacId).update(veri);
           if (mounted) {
             Navigator.pop(context);
@@ -119,6 +138,8 @@ class _IlacEkleEkraniState extends State<IlacEkleEkrani> {
       _secilenKisi = null;
       _acTokDurumu = null;
       _secilenVakitler = [];
+      _secilenGunler = [];
+      _herGun = true;
     });
   }
 
@@ -134,35 +155,54 @@ class _IlacEkleEkraniState extends State<IlacEkleEkrani> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (widget.ilacId == null)
-                const Text("Yeni İlaç Ekle", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                const Text("Yeni İlaç Ekle", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
               const SizedBox(height: 20),
 
+              // İlaç Adı
               TextFormField(
                 controller: _adController,
                 validator: (value) => value!.isEmpty ? "İlaç adı gerekli" : null,
-                decoration: const InputDecoration(labelText: "İlaç Adı", border: OutlineInputBorder(), prefixIcon: Icon(Icons.medication)),
+                decoration: const InputDecoration(
+                  labelText: "İlaç Adı",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.medication, color: Colors.teal),
+                ),
               ),
               const SizedBox(height: 15),
 
+              // Kişi Seçimi
               DropdownButtonFormField<String>(
                 value: _secilenKisi,
                 validator: (value) => value == null ? "Kişi seçin" : null,
-                decoration: const InputDecoration(labelText: "Kimin İlacı?", border: OutlineInputBorder(), prefixIcon: Icon(Icons.person)),
+                decoration: const InputDecoration(
+                  labelText: "Kimin İlacı?",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.person, color: Colors.teal),
+                ),
                 items: _kisiListesi.map((kisi) => DropdownMenuItem(value: kisi, child: Text(kisi))).toList(),
                 onChanged: (deger) => setState(() => _secilenKisi = deger),
               ),
-              const SizedBox(height: 15),
+              const SizedBox(height: 20),
 
-              // --- YENİ EKLENEN VAKİT SEÇİMİ ---
-              const Text("Hangi Vakitlerde İçilecek?", style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 5),
+              // Vakit Seçimi
+              const Text("Hangi Vakitlerde İçilecek?", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
               Wrap(
                 spacing: 8.0,
                 children: _vakitSecenekleri.map((vakit) {
+                  IconData icon = Icons.access_time;
+                  Color color = Colors.grey;
+                  if (vakit == "Sabah") { icon = Icons.wb_twilight; color = Colors.orange; }
+                  if (vakit == "Öğle") { icon = Icons.wb_sunny; color = Colors.yellow.shade800; }
+                  if (vakit == "Akşam") { icon = Icons.nights_stay; color = Colors.indigo; }
+                  if (vakit == "Gece") { icon = Icons.bed; color = Colors.purple; }
+
                   return FilterChip(
-                    label: Text(vakit),
+                    avatar: Icon(icon, size: 20, color: _secilenVakitler.contains(vakit) ? Colors.white : color),
+                    label: Text(vakit, style: TextStyle(color: _secilenVakitler.contains(vakit) ? Colors.white : Colors.black)),
                     selected: _secilenVakitler.contains(vakit),
-                    selectedColor: Colors.teal.shade100,
+                    selectedColor: color,
+                    checkmarkColor: Colors.white,
                     onSelected: (bool selected) {
                       setState(() {
                         if (selected) {
@@ -175,39 +215,103 @@ class _IlacEkleEkraniState extends State<IlacEkleEkrani> {
                   );
                 }).toList(),
               ),
-              const SizedBox(height: 15),
+              const SizedBox(height: 20),
 
+              // YENİ: Gün Seçimi
+              const Text("Hangi Günlerde İçilecek?", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+
+              // Her Gün Checkbox
+              CheckboxListTile(
+                title: const Text("Her Gün", style: TextStyle(fontWeight: FontWeight.bold)),
+                value: _herGun,
+                activeColor: Colors.teal,
+                onChanged: (bool? value) {
+                  setState(() {
+                    _herGun = value ?? true;
+                    if (_herGun) _secilenGunler.clear();
+                  });
+                },
+              ),
+
+              // Eğer "Her Gün" seçili değilse gün seçeneklerini göster
+              if (!_herGun) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8.0,
+                  runSpacing: 8.0,
+                  children: _gunSecenekleri.map((gun) {
+                    bool secili = _secilenGunler.contains(gun["ad"]);
+                    return ChoiceChip(
+                      avatar: Icon(gun["icon"], size: 18, color: secili ? Colors.white : Colors.teal),
+                      label: Text(gun["kisa"], style: TextStyle(color: secili ? Colors.white : Colors.black)),
+                      selected: secili,
+                      selectedColor: Colors.teal,
+                      onSelected: (bool selected) {
+                        setState(() {
+                          if (selected) {
+                            _secilenGunler.add(gun["ad"]);
+                          } else {
+                            _secilenGunler.remove(gun["ad"]);
+                          }
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+              ],
+              const SizedBox(height: 20),
+
+              // Stok
               TextFormField(
                 controller: _stokController,
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(labelText: "Stok Adedi", border: OutlineInputBorder(), prefixIcon: Icon(Icons.numbers)),
+                decoration: const InputDecoration(
+                  labelText: "Stok Adedi",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.inventory, color: Colors.teal),
+                ),
               ),
               const SizedBox(height: 15),
 
+              // Kullanım Şekli
               DropdownButtonFormField<String>(
                 value: _acTokDurumu,
-                decoration: const InputDecoration(labelText: "Kullanım Şekli", border: OutlineInputBorder(), prefixIcon: Icon(Icons.restaurant)),
+                decoration: const InputDecoration(
+                  labelText: "Kullanım Şekli",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.restaurant, color: Colors.teal),
+                ),
                 items: _acTokListesi.map((durum) => DropdownMenuItem(value: durum, child: Text(durum))).toList(),
                 onChanged: (deger) => setState(() => _acTokDurumu = deger),
               ),
               const SizedBox(height: 15),
 
+              // Notlar
               TextFormField(
                 controller: _notController,
                 maxLines: 2,
-                decoration: const InputDecoration(labelText: "Notlar", border: OutlineInputBorder(), prefixIcon: Icon(Icons.note_add)),
+                decoration: const InputDecoration(
+                  labelText: "Notlar (Opsiyonel)",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.note_add, color: Colors.teal),
+                ),
               ),
               const SizedBox(height: 25),
 
+              // Kaydet Butonu
               SizedBox(
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton.icon(
                   onPressed: _kaydetVeyaGuncelle,
                   icon: const Icon(Icons.save, color: Colors.white),
-                  label: const Text("Kaydet / Güncelle", style: TextStyle(color: Colors.white, fontSize: 18)),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+                  label: const Text("Kaydet", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.teal,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
                 ),
               )
             ],

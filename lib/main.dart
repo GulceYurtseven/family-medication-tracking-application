@@ -1,24 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:timezone/data/latest.dart' as tz;
-import 'package:timezone/timezone.dart' as tz;
 import 'services/bildirim_servisi.dart';
-import 'services/zaman_yoneticisi.dart'; // EKLENDİ
+import 'services/zaman_yoneticisi.dart';
 import 'screens/ana_sayfa.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
 
-  // Saat dilimi ve Yöneticiler
-  tz.initializeTimeZones();
-  try {
-    tz.setLocalLocation(tz.getLocation('Europe/Istanbul'));
-  } catch (e) {
-    print("Saat hatası: $e");
-  }
+  // 1. Veritabanındaki saatleri hazırla
+  await ZamanYoneticisi().saatleriYukle();
 
-  await ZamanYoneticisi().saatleriYukle(); // EKLENDİ: Saatleri hafızadan oku
+  // 2. Bildirim servisini başlat (Saat dilimi içerde ayarlanıyor)
   await BildirimServisi().init();
 
   runApp(const AileIlacTakipApp());

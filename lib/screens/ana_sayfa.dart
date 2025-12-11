@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'gunluk_plan_ekrani.dart';
+import 'takvim_ekrani.dart'; // YENİ
 import 'stok_ekrani.dart';
 import 'ilac_ekle_ekrani.dart';
-import 'ayarlar_sayfasi.dart'; // EKLENDİ
+import 'ayarlar_sayfasi.dart';
 
 class AnaSayfa extends StatefulWidget {
   const AnaSayfa({super.key});
@@ -16,8 +17,16 @@ class _AnaSayfaState extends State<AnaSayfa> {
 
   final List<Widget> _sayfalar = [
     const GunlukPlanEkrani(),
+    const TakvimEkrani(), // YENİ
     const StokEkrani(),
     const IlacEkleEkrani(),
+  ];
+
+  final List<String> _basliklar = [
+    'Bugün',
+    'Takvim',
+    'Stoklar',
+    'İlaç Ekle',
   ];
 
   void _onItemTapped(int index) {
@@ -30,10 +39,11 @@ class _AnaSayfaState extends State<AnaSayfa> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Aile İlaç Takip'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        title: Text(_basliklar[_secilenIndex]),
+        backgroundColor: Colors.teal,
+        foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
-          // AYARLAR BUTONU
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {
@@ -45,12 +55,27 @@ class _AnaSayfaState extends State<AnaSayfa> {
       body: _sayfalar[_secilenIndex],
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'Bugün'),
-          BottomNavigationBarItem(icon: Icon(Icons.inventory), label: 'Stoklar'),
-          BottomNavigationBarItem(icon: Icon(Icons.add_circle_outline), label: 'İlaç Ekle'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.today),
+            label: 'Bugün',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.calendar_month),
+            label: 'Takvim',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.inventory),
+            label: 'Stoklar',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.add_circle),
+            label: 'Ekle',
+          ),
         ],
         currentIndex: _secilenIndex,
         selectedItemColor: Colors.teal,
+        unselectedItemColor: Colors.grey,
+        type: BottomNavigationBarType.fixed,
         onTap: _onItemTapped,
       ),
     );

@@ -1,14 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'ilac_ekle_ekrani.dart';
-import '../services/bildirim_servisi.dart'; // Bildirim servisini import ettik
+import '../services/bildirim_servisi.dart';
 
 class GunlukPlanEkrani extends StatelessWidget {
   const GunlukPlanEkrani({super.key});
 
-  // --- İŞLEV FONKSİYONLARI ---
+  // Bugünün gününü döndür (Pazartesi, Salı vb.)
+  String _bugununGunu() {
+    const gunler = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
+    int bugun = DateTime.now().weekday; // 1=Pazartesi, 7=Pazar
+    return gunler[bugun - 1];
+  }
 
-  // 1. İlaç içildiğinde çalışan ana fonksiyon
+  // İlaç bugün içilmeli mi?
+  bool _ilacBugunIcilmeliMi(Map<String, dynamic> data) {
+    bool herGun = data['her_gun'] ?? true;
+    if (herGun) return true;
+
+    List<dynamic> gunler = data['gunler'] ?? [];
+    return gunler.contains(_bugununGunu());
+  }
+
   void _vakitIcildiIsaretle(DocumentSnapshot doc, String vakit, BuildContext context) async {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
     int mevcutStok = data['stok'] ?? 0;
@@ -16,15 +29,12 @@ class GunlukPlanEkrani extends StatelessWidget {
     int ilacIdBase = data['bildirim_id_base'] ?? 0;
 
     if (mevcutStok > 0) {
-      // 1. Veritabanı
       icilenTarihler[vakit] = Timestamp.now();
       await FirebaseFirestore.instance.collection('ilaclar').doc(doc.id).update({
         'stok': mevcutStok - 1,
         'icilen_tarihler': icilenTarihler,
       });
 
-      // 2. HATIRLATICILARI İPTAL ET (Yeni Fonksiyon)
-      // Bu fonksiyon o vakit için kurulmuş 3 tane (15-30-45 dk) bildirimi iptal eder.
       await BildirimServisi().hatirlaticilariIptalEt(ilacIdBase, vakit);
 
       if (context.mounted) {
@@ -37,7 +47,6 @@ class GunlukPlanEkrani extends StatelessWidget {
     }
   }
 
-  // 2. İlaç Silme
   void _ilacSil(String id, BuildContext context) {
     showDialog(
       context: context,
@@ -58,9 +67,6 @@ class GunlukPlanEkrani extends StatelessWidget {
     );
   }
 
-  // --- YARDIMCI KONTROLLER ---
-
-  // O vakit bugün içildi mi?
   bool _vakitBugunTamamMi(dynamic timestamp) {
     if (timestamp == null) return false;
     DateTime simdi = DateTime.now();
@@ -68,7 +74,6 @@ class GunlukPlanEkrani extends StatelessWidget {
     return simdi.year == kayit.year && simdi.month == kayit.month && simdi.day == kayit.day;
   }
 
-  // İkon Belirleme
   IconData _vakitIkonuGetir(String vakit) {
     switch (vakit) {
       case 'Sabah': return Icons.wb_twilight;
@@ -79,7 +84,6 @@ class GunlukPlanEkrani extends StatelessWidget {
     }
   }
 
-  // Renk Belirleme
   Color _vakitRengiGetir(String vakit) {
     switch (vakit) {
       case 'Sabah': return Colors.orange;
@@ -90,23 +94,87 @@ class GunlukPlanEkrani extends StatelessWidget {
     }
   }
 
-  // --- ARAYÜZ ---
-
   @override
   Widget build(BuildContext context) {
+    String bugun = _bugununGunu();
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('ilaclar').snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Text("Henüz hiç ilaç eklenmemiş."));
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.medication_outlined, size: 100, color: Colors.grey.shade300),
+                const SizedBox(height: 16),
+                Text("Henüz hiç ilaç eklenmemiş.", style: TextStyle(fontSize: 18, color: Colors.grey.shade600)),
+              ],
+            ),
+          );
+        }
 
         var ilaclar = snapshot.data!.docs;
-        var dedenin = ilaclar.where((doc) => doc['sahibi'] == 'Dede').toList();
-        var ananenin = ilaclar.where((doc) => doc['sahibi'] == 'Anane').toList();
+
+        // BUGÜN İÇİLMESİ GEREKEN İLAÇLARI FİLTRELE
+        var bugunIlaclar = ilaclar.where((doc) {
+          var data = doc.data() as Map<String, dynamic>;
+          return _ilacBugunIcilmeliMi(data);
+        }).toList();
+
+        if (bugunIlaclar.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.event_available, size: 100, color: Colors.grey.shade300),
+                const SizedBox(height: 16),
+                Text("$bugun günü için ilaç yok 🎉", style: TextStyle(fontSize: 18, color: Colors.grey.shade600)),
+              ],
+            ),
+          );
+        }
+
+        var dedenin = bugunIlaclar.where((doc) => doc['sahibi'] == 'Dede').toList();
+        var ananenin = bugunIlaclar.where((doc) => doc['sahibi'] == 'Anane').toList();
 
         return ListView(
           padding: const EdgeInsets.all(16.0),
           children: [
+            // Bugünün Tarihi
+            Container(
+              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.teal.shade400, Colors.teal.shade700],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.calendar_today, color: Colors.white, size: 30),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        bugun,
+                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                      Text(
+                        "${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}",
+                        style: const TextStyle(fontSize: 14, color: Colors.white70),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
             if (dedenin.isNotEmpty) ...[
               _baslik("👴 Dede'nin İlaçları", Colors.blue.shade800),
               ...dedenin.map((doc) => _ilacKarti(doc, Colors.blue.shade50, context)),
@@ -122,36 +190,47 @@ class GunlukPlanEkrani extends StatelessWidget {
     );
   }
 
-  Widget _baslik(String text, Color color) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(text, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color)));
+  Widget _baslik(String text, Color color) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(text, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color)),
+  );
 
   Widget _ilacKarti(DocumentSnapshot doc, Color cardColor, BuildContext context) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
     String id = doc.id;
 
-    // Verileri güvenli çekelim
-    List<dynamic> vakitler = data['vakitler'] ?? []; // ['Sabah', 'Akşam']
+    List<dynamic> vakitler = data['vakitler'] ?? [];
     Map<String, dynamic> icilenTarihler = data['icilen_tarihler'] ?? {};
 
-    // Vakitleri sıraya dizelim (Sabah -> Gece)
     vakitler.sort((a, b) {
       List order = ["Sabah", "Öğle", "Akşam", "Gece"];
       return order.indexOf(a).compareTo(order.indexOf(b));
     });
 
-    // Bugün hepsi içildi mi kontrolü (Üstünü çizmek için)
     bool tumuTamam = vakitler.isNotEmpty && vakitler.every((v) => _vakitBugunTamamMi(icilenTarihler[v]));
 
     return Card(
       color: tumuTamam ? Colors.grey.shade300 : cardColor,
       margin: const EdgeInsets.only(bottom: 12),
+      elevation: tumuTamam ? 1 : 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ExpansionTile(
-        leading: Icon(Icons.medication, color: tumuTamam ? Colors.green : Colors.grey.shade800, size: 35),
+        leading: Icon(
+          Icons.medication,
+          color: tumuTamam ? Colors.green : Colors.grey.shade800,
+          size: 35,
+        ),
         title: Row(
           children: [
             Expanded(
-              child: Text(data['ad'], style: TextStyle(fontWeight: FontWeight.bold, decoration: tumuTamam ? TextDecoration.lineThrough : null)),
+              child: Text(
+                data['ad'],
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  decoration: tumuTamam ? TextDecoration.lineThrough : null,
+                ),
+              ),
             ),
-            // Küçük ikonlar
             Row(
               children: vakitler.map((v) => Padding(
                 padding: const EdgeInsets.only(left: 4),
@@ -163,29 +242,44 @@ class GunlukPlanEkrani extends StatelessWidget {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("${data['kullanim_sekli']} - Stok: ${data['stok']}"),
+            const SizedBox(height: 4),
+            Text("${data['kullanim_sekli']} • Stok: ${data['stok']}"),
             const SizedBox(height: 8),
 
-            // --- İŞTE SORDUĞUN KISIM BURASI ---
-            // Her vakit için bir buton oluşturuyoruz
             Wrap(
               spacing: 8,
+              runSpacing: 8,
               children: vakitler.map((vakit) {
                 bool icildi = _vakitBugunTamamMi(icilenTarihler[vakit]);
-                return ActionChip(
-                  avatar: Icon(icildi ? Icons.check : _vakitIkonuGetir(vakit.toString()), size: 16, color: icildi ? Colors.white : _vakitRengiGetir(vakit.toString())),
-                  label: Text(vakit.toString(), style: TextStyle(color: icildi ? Colors.white : Colors.black)),
-                  backgroundColor: icildi ? Colors.green : Colors.white,
-                  side: BorderSide(color: icildi ? Colors.transparent : Colors.grey.shade300),
+                Color vakitRengi = _vakitRengiGetir(vakit.toString());
 
-                  // SENİN ARADIĞIN onPressed BURADA:
+                return ActionChip(
+                  avatar: Icon(
+                    icildi ? Icons.check_circle : _vakitIkonuGetir(vakit.toString()),
+                    size: 18,
+                    color: icildi ? Colors.white : vakitRengi,
+                  ),
+                  label: Text(
+                    vakit.toString(),
+                    style: TextStyle(
+                      color: icildi ? Colors.white : Colors.black87,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  backgroundColor: icildi ? Colors.green.shade600 : Colors.white,
+                  disabledColor: Colors.green.shade600,
+                  side: BorderSide(
+                    color: icildi ? Colors.green.shade800 : vakitRengi,
+                    width: 2,
+                  ),
+                  elevation: icildi ? 0 : 2,
+                  shadowColor: vakitRengi.withOpacity(0.3),
                   onPressed: icildi ? null : () {
                     _vakitIcildiIsaretle(doc, vakit.toString(), context);
                   },
                 );
               }).toList(),
             )
-            // ----------------------------------
           ],
         ),
         children: [
@@ -197,8 +291,17 @@ class GunlukPlanEkrani extends StatelessWidget {
                 Expanded(child: Text("Not: ${data['not'] ?? 'Yok'}")),
                 Row(
                   children: [
-                    IconButton(icon: const Icon(Icons.edit, color: Colors.orange), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => IlacEkleEkrani(ilacId: id, mevcutVeri: data)))),
-                    IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => _ilacSil(id, context)),
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: Colors.orange),
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => IlacEkleEkrani(ilacId: id, mevcutVeri: data)),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () => _ilacSil(id, context),
+                    ),
                   ],
                 )
               ],
