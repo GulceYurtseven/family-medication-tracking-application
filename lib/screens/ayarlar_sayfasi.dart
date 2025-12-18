@@ -48,7 +48,7 @@ class _AyarlarSayfasiState extends State<AyarlarSayfasi> {
     }
   }
 
-  // YENİ: Tüm bildirimleri güncelle
+  //Tüm bildirimleri güncelle
   Future<void> _tumBildirimleriGuncelle(String vakit, TimeOfDay yeniSaat) async {
     try {
       // 1. Ana vakit bildirimini güncelle

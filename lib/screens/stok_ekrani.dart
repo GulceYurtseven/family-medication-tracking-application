@@ -125,7 +125,6 @@ class _StokEkraniState extends State<StokEkrani> {
     );
   }
 
-  // Tasarım Widget'ı
   Widget _kisiFiltresiButon(String label, String emoji, String? kisiAdi) {
     bool secili = _secilenKisi == kisiAdi;
     return GestureDetector(

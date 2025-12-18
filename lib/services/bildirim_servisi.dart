@@ -27,7 +27,6 @@ class BildirimServisi {
   Future<void> init() async {
     tz.initializeTimeZones();
     tz.setLocalLocation(tz.getLocation('Europe/Istanbul'));
-    print("🌍 Saat dilimi Europe/Istanbul olarak ayarlandı");
 
     await flutterLocalNotificationsPlugin
         .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
@@ -56,7 +55,6 @@ class BildirimServisi {
       await androidImplementation.requestExactAlarmsPermission();
     }
 
-    print("✅ Bildirim servisi başlatıldı");
   }
 
   // 1. ANA VAKİT BİLDİRİMİ (Herkese ortak)
@@ -317,16 +315,6 @@ class BildirimServisi {
     return simdi.year == kayit.year &&
         simdi.month == kayit.month &&
         simdi.day == kayit.day;
-  }
-
-  // ESKİ FONKSİYONLAR (Uyumluluk için)
-  Future<void> hatirlaticilariIptalEt(int ilacBaseId, String vakit) async {
-    print("ℹ️ hatirlaticilariIptalEt çağrıldı (yeni sistemde otomatik)");
-  }
-
-  @Deprecated("Artık kullanılmıyor")
-  Future<void> hatirlaticiKur(int ilacBaseId, String ilacAdi, String kisi, String vakit, int saat, int dakika) async {
-    print("ℹ️ Eski hatirlaticiKur çağrıldı");
   }
 
   // YARDIMCI: Basit bildirim planlama

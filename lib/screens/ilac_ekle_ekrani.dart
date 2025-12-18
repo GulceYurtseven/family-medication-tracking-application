@@ -32,7 +32,7 @@ class _IlacEkleEkraniState extends State<IlacEkleEkrani> {
   final List<String> _vakitSecenekleri = ["Sabah", "Öğle", "Akşam", "Gece"];
   List<String> _secilenVakitler = [];
 
-  // YENİ: Gün seçenekleri
+  // Gün seçenekleri
   final List<Map<String, dynamic>> _gunSecenekleri = [
     {"ad": "Pazartesi", "kisa": "Pzt", "icon": Icons.calendar_today},
     {"ad": "Salı", "kisa": "Sal", "icon": Icons.calendar_today},
@@ -59,7 +59,7 @@ class _IlacEkleEkraniState extends State<IlacEkleEkrani> {
       _secilenVakitler = List<String>.from(widget.mevcutVeri!['vakitler']);
     }
 
-    // YENİ: Gün bilgilerini yükle
+    // Gün bilgilerini yükle
     if (widget.mevcutVeri != null) {
       _herGun = widget.mevcutVeri?['her_gun'] ?? true;
       if (widget.mevcutVeri!['gunler'] != null) {
@@ -106,14 +106,6 @@ class _IlacEkleEkraniState extends State<IlacEkleEkrani> {
           for (String vakit in _secilenVakitler) {
             TimeOfDay saatAyari = ZamanYoneticisi().saatiGetir(vakit);
             await BildirimServisi().anaVakitBildirimiKur(vakit, saatAyari.hour, saatAyari.minute);
-            await BildirimServisi().hatirlaticiKur(
-                ilacIdBase,
-                ad,
-                _secilenKisi!,
-                vakit,
-                saatAyari.hour,
-                saatAyari.minute
-            );
           }
 
           if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('İlaç ve Alarmlar Kaydedildi!')));
@@ -219,7 +211,7 @@ class _IlacEkleEkraniState extends State<IlacEkleEkrani> {
               ),
               const SizedBox(height: 20),
 
-              // YENİ: Gün Seçimi
+              // Gün Seçimi
               const Text("Hangi Günlerde İçilecek?", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
 
@@ -236,7 +228,7 @@ class _IlacEkleEkraniState extends State<IlacEkleEkrani> {
                 },
               ),
 
-              // Eğer "Her Gün" seçili değilse gün seçeneklerini göster
+              // Eğer Her Gün seçili değilse gün seçeneklerini göster
               if (!_herGun) ...[
                 const SizedBox(height: 8),
                 Wrap(

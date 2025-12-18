@@ -32,7 +32,7 @@ class _GunlukPlanEkraniState extends State<GunlukPlanEkrani> {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
     Map<String, dynamic> icilenTarihler = Map<String, dynamic>.from(data['icilen_tarihler'] ?? {});
 
-    // Önce bu vakit zaten içilmiş mi kontrol edelim
+    // Önce bu vakit zaten içilmiş mi kontrol et
     bool zatenIcildi = _vakitBugunTamamMi(icilenTarihler[vakit]);
 
     int mevcutStok = data['stok'] ?? 0;
@@ -53,10 +53,6 @@ class _GunlukPlanEkraniState extends State<GunlukPlanEkrani> {
         'stok': yeniStok,
         'icilen_tarihler': icilenTarihler,
       });
-
-      // (Opsiyonel) Bildirimleri geri açmak isterseniz burada tekrar schedule edebilirsiniz.
-      // Ancak saat bilgisi dinamik olduğu için genelde sadece veritabanı güncellemesi yeterlidir.
-
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -78,8 +74,6 @@ class _GunlukPlanEkraniState extends State<GunlukPlanEkrani> {
           'stok': yeniStok,
           'icilen_tarihler': icilenTarihler,
         });
-
-        await BildirimServisi().hatirlaticilariIptalEt(ilacIdBase, vakit);
 
         await StokKontrolServisi().stokKontrolEt(
           doc.id,

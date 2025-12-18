@@ -44,8 +44,6 @@ class ZamanYoneticisi {
       default: return const TimeOfDay(hour: 9, minute: 0);
     }
   }
-
-  // Yardımcılar
   TimeOfDay _stringToTime(String s) {
     final parts = s.split(":");
     return TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));

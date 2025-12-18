@@ -12,7 +12,7 @@ void main() async {
   // 1. Veritabanındaki saatleri hazırla
   await ZamanYoneticisi().saatleriYukle();
 
-  // 2. Kişileri Hafızadan Yükle (YENİ EKLENEN SATIR)
+  // 2. Kişileri Hafızadan Yükle
   await KisiYoneticisi().kisileriYukle();
 
   // 3. Bildirim servisini başlat

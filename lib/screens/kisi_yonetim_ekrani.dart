@@ -98,7 +98,7 @@ class _KisiYonetimEkraniState extends State<KisiYonetimEkrani> {
     );
   }
 
-  // --- KRİTİK DEĞİŞİKLİK: SİLME İŞLEMİ GÜNCELLENDİ ---
+  // SİLME İŞLEMİ
   void _kisiSil(String ad, String emoji) {
     showDialog(
       context: context,
@@ -140,10 +140,6 @@ class _KisiYonetimEkraniState extends State<KisiYonetimEkrani> {
         int ilacIdBase = data['bildirim_id_base'] ?? 0;
         List<dynamic> vakitler = data['vakitler'] ?? [];
 
-        // Bildirimleri İptal Et
-        for (var vakit in vakitler) {
-          await BildirimServisi().hatirlaticilariIptalEt(ilacIdBase, vakit.toString());
-        }
 
         // İlacı Veritabanından Sil
         await doc.reference.delete();
