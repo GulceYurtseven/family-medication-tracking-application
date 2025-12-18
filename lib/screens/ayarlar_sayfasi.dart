@@ -54,33 +54,11 @@ class _AyarlarSayfasiState extends State<AyarlarSayfasi> {
       // 1. Ana vakit bildirimini güncelle
       await BildirimServisi().anaVakitBildirimiKur(vakit, yeniSaat.hour, yeniSaat.minute);
 
-      // 2. Tüm ilaçları çek
-      QuerySnapshot ilaclar = await FirebaseFirestore.instance.collection('ilaclar').get();
+      // 2. Kişi bazlı hatırlatıcıları güncelle (artık ilaç bazlı değil)
+      await BildirimServisi().kisiHatirlaticiKur(vakit, yeniSaat.hour, yeniSaat.minute);
 
-      // 3. Her ilaç için bu vakite ait hatırlatıcıları güncelle
-      for (var doc in ilaclar.docs) {
-        var data = doc.data() as Map<String, dynamic>;
-        List<dynamic> vakitler = data['vakitler'] ?? [];
+      print("🎉 $vakit vakti bildirimleri güncellendi!");
 
-        // Eğer bu ilaç, güncellenen vakitte içiliyorsa
-        if (vakitler.contains(vakit)) {
-          int ilacIdBase = data['bildirim_id_base'] ?? 0;
-          String ilacAdi = data['ad'] ?? '';
-          String kisi = data['sahibi'] ?? '';
-
-          // Hatırlatıcıları yeniden kur
-          await BildirimServisi().hatirlaticiKur(
-            ilacIdBase,
-            ilacAdi,
-            kisi,
-            vakit,
-            yeniSaat.hour,
-            yeniSaat.minute,
-          );
-
-          print("✅ $ilacAdi ilacının $vakit bildirimleri güncellendi");
-        }
-      }
     } catch (e) {
       print("❌ Bildirimler güncellenirken hata: $e");
     }

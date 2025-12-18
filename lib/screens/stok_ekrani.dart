@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../services/bildirim_servisi.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:timezone/timezone.dart' as tz;
+import '../services/kisi_yoneticisi.dart';
 
 class StokEkrani extends StatefulWidget {
   const StokEkrani({super.key});
@@ -13,55 +11,43 @@ class StokEkrani extends StatefulWidget {
 
 class _StokEkraniState extends State<StokEkrani> {
   String _aramaMetni = "";
-  String? _secilenKisi; // null = Hepsi, "Dede" veya "Anane"
+  String? _secilenKisi;
 
   @override
   Widget build(BuildContext context) {
+    List<Map<String, String>> kisiler = KisiYoneticisi().tumKisileriGetir();
+
     return Column(
       children: [
-        // KİŞİ SEÇİM BUTONLARI
+        // KİŞİ SEÇİM BUTONLARI (Bugün Ekranıyla Aynı Tasarım)
         Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: Colors.teal.shade50,
             boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: _kisiButonu(
-                  "Hepsi",
-                  "🏠",
-                  Colors.grey.shade700,
-                  _secilenKisi == null,
-                      () => setState(() => _secilenKisi = null),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _kisiButonu(
-                  "Dede",
-                  "👴",
-                  Colors.blue.shade700,
-                  _secilenKisi == "Dede",
-                      () => setState(() => _secilenKisi = "Dede"),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _kisiButonu(
-                  "Anane",
-                  "👵",
-                  Colors.pink.shade700,
-                  _secilenKisi == "Anane",
-                      () => setState(() => _secilenKisi = "Anane"),
-                ),
-              ),
-            ],
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _kisiFiltresiButon("Hepsi", "🏠", null),
+                const SizedBox(width: 8),
+                ...kisiler.map((kisi) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: _kisiFiltresiButon(
+                      kisi["ad"]!,
+                      kisi["emoji"]!,
+                      kisi["ad"],
+                    ),
+                  );
+                }).toList(),
+              ],
+            ),
           ),
         ),
 
-        // ARAMA ÇUBUĞU
+        // ARAMA
         Padding(
           padding: const EdgeInsets.all(16.0),
           child: TextField(
@@ -72,11 +58,7 @@ class _StokEkraniState extends State<StokEkrani> {
               filled: true,
               fillColor: Colors.grey.shade100,
             ),
-            onChanged: (deger) {
-              setState(() {
-                _aramaMetni = deger.toLowerCase();
-              });
-            },
+            onChanged: (deger) => setState(() => _aramaMetni = deger.toLowerCase()),
           ),
         ),
 
@@ -85,48 +67,29 @@ class _StokEkraniState extends State<StokEkrani> {
           child: StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance.collection('ilaclar').orderBy('stok').snapshots(),
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
+              if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Text("Kayıtlı ilaç yok."));
 
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return const Center(child: Text("Kayıtlı ilaç yok."));
-              }
-
-              var docs = snapshot.data!.docs;
-
-              // FİLTRELEME (Arama + Kişi)
-              var filtrelenmisDocs = docs.where((doc) {
+              var docs = snapshot.data!.docs.where((doc) {
                 var data = doc.data() as Map<String, dynamic>;
                 String ad = (data['ad'] ?? '').toString().toLowerCase();
                 String sahibi = data['sahibi'] ?? '';
-
                 bool aramaUygun = ad.contains(_aramaMetni);
                 bool kisiUygun = _secilenKisi == null || sahibi == _secilenKisi;
-
                 return aramaUygun && kisiUygun;
               }).toList();
 
-              if (filtrelenmisDocs.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.search_off, size: 80, color: Colors.grey.shade300),
-                      const SizedBox(height: 16),
-                      Text("Sonuç bulunamadı.", style: TextStyle(fontSize: 18, color: Colors.grey.shade600)),
-                    ],
-                  ),
-                );
-              }
+              if (docs.isEmpty) return const Center(child: Text("Sonuç bulunamadı."));
 
               return ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: filtrelenmisDocs.length,
+                itemCount: docs.length,
                 itemBuilder: (context, index) {
-                  var data = filtrelenmisDocs[index].data() as Map<String, dynamic>;
+                  var data = docs[index].data() as Map<String, dynamic>;
                   int stok = data['stok'] ?? 0;
                   bool kritikStok = stok < 5;
+                  String sahibi = data['sahibi'] ?? '';
+                  String emoji = KisiYoneticisi().emojiGetir(sahibi) ?? "👤";
 
                   return Card(
                     color: kritikStok ? Colors.red.shade100 : Colors.white,
@@ -135,14 +98,11 @@ class _StokEkraniState extends State<StokEkrani> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     child: ListTile(
                       leading: CircleAvatar(
-                        backgroundColor: data['sahibi'] == 'Dede' ? Colors.blue : Colors.pink,
-                        child: Text(
-                          data['sahibi'] == 'Dede' ? "👴" : "👵",
-                          style: const TextStyle(fontSize: 24),
-                        ),
+                        backgroundColor: Colors.teal.shade100,
+                        child: Text(emoji, style: const TextStyle(fontSize: 24)),
                       ),
-                      title: Text(data['ad'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text("Sahibi: ${data['sahibi']}"),
+                      title: Text(data['ad'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+                      subtitle: Text("Sahibi: $sahibi", style: TextStyle(color: Colors.black),),
                       trailing: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
@@ -165,28 +125,27 @@ class _StokEkraniState extends State<StokEkrani> {
     );
   }
 
-  Widget _kisiButonu(String label, String emoji, Color color, bool secili, VoidCallback onTap) {
+  // Tasarım Widget'ı
+  Widget _kisiFiltresiButon(String label, String emoji, String? kisiAdi) {
+    bool secili = _secilenKisi == kisiAdi;
     return GestureDetector(
-      onTap: onTap,
+      onTap: () => setState(() => _secilenKisi = kisiAdi),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: secili ? color : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color, width: 2),
-          boxShadow: secili ? [BoxShadow(color: color.withOpacity(0.3), blurRadius: 8, offset: Offset(0, 4))] : null,
+          color: secili ? Colors.teal : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.teal, width: 2),
+          boxShadow: secili ? [BoxShadow(color: Colors.teal.withOpacity(0.3), blurRadius: 8)] : null,
         ),
-        child: Column(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text(emoji, style: const TextStyle(fontSize: 28)),
-            const SizedBox(height: 4),
+            Text(emoji, style: const TextStyle(fontSize: 20)),
+            const SizedBox(width: 6),
             Text(
               label,
-              style: TextStyle(
-                color: secili ? Colors.white : color,
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-              ),
+              style: TextStyle(color: secili ? Colors.white : Colors.teal, fontWeight: FontWeight.bold, fontSize: 14),
             ),
           ],
         ),

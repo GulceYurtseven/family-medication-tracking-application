@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:ilac_takip/services/kisi_yoneticisi.dart';
 import 'services/bildirim_servisi.dart';
 import 'services/zaman_yoneticisi.dart';
 import 'screens/ana_sayfa.dart';
@@ -11,7 +12,10 @@ void main() async {
   // 1. Veritabanındaki saatleri hazırla
   await ZamanYoneticisi().saatleriYukle();
 
-  // 2. Bildirim servisini başlat (Saat dilimi içerde ayarlanıyor)
+  // 2. Kişileri Hafızadan Yükle (YENİ EKLENEN SATIR)
+  await KisiYoneticisi().kisileriYukle();
+
+  // 3. Bildirim servisini başlat
   await BildirimServisi().init();
 
   runApp(const AileIlacTakipApp());

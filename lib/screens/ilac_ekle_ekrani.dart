@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/bildirim_servisi.dart';
 import '../services/zaman_yoneticisi.dart';
+import '../services/kisi_yoneticisi.dart'; // YENİ
 
 class IlacEkleEkrani extends StatefulWidget {
   final String? ilacId;
@@ -24,7 +25,7 @@ class _IlacEkleEkraniState extends State<IlacEkleEkrani> {
   String? _secilenKisi;
   String? _acTokDurumu;
 
-  final List<String> _kisiListesi = ["Dede", "Anane"];
+  List<String> _kisiListesi = []; // Artık dinamik
   final List<String> _acTokListesi = ["Aç Karna", "Tok Karna", "Farketmez"];
 
   // Vakit seçenekleri
@@ -47,6 +48,7 @@ class _IlacEkleEkraniState extends State<IlacEkleEkrani> {
   @override
   void initState() {
     super.initState();
+    _kisiListesi = KisiYoneticisi().kisiAdlariniGetir();
     _adController = TextEditingController(text: widget.mevcutVeri?['ad'] ?? '');
     _stokController = TextEditingController(text: widget.mevcutVeri?['stok']?.toString() ?? '');
     _notController = TextEditingController(text: widget.mevcutVeri?['not'] ?? '');
