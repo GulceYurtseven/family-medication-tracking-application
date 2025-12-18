@@ -1,51 +1,58 @@
 # Family Medicine Tracker
 
-A cross-platform mobile application developed with Flutter to assist elderly family members in managing their daily medication schedules and inventory. The app ensures medication adherence through a smart notification system and real-time stock tracking tailored for multiple family members.
+A cross-platform mobile application developed with Flutter to assist families in managing daily medication schedules and inventory for multiple members. The app ensures medication adherence through a smart, grouped notification system, flexible scheduling options, and real-time stock tracking tailored for various family roles.
 
 ## Features
-### Daily Tracking & Schedule
 
-Role-Based Views: distinct sections for different family members (e.g., Grandpa & Grandma) for easy readability.
+### User & Role Management
 
-Visual Cues: Intuitive icons for medication times (🌅 Morning, ☀️ Noon, 🌙 Evening, 🛌 Night).
+* **Dynamic Profiles:** Create and manage profiles for different family members (e.g., Grandpa, Grandma, Children).
+* **Custom Avatars:** Assign distinct avatars to each profile for quick visual identification throughout the app.
+* **Data Integrity:** Deleting a user profile automatically cleans up all associated medications and cancels pending notifications to prevent orphaned data.
 
-Dynamic Status: Medication cards change appearance when marked as "Taken" (Green/Strikethrough).
+### Advanced Scheduling & Calendar
 
-## Smart Notification System
-Scheduled Alerts: Sends local notifications at specific times (customizable via Settings).
+* **Flexible Frequencies:** Medications can be scheduled for "Every Day" or specific days of the week (e.g., Mondays and Thursdays only).
+* **Calendar View:** A dedicated calendar tab provides a weekly overview of all scheduled medications, grouped by time slots and family members.
+* **Time Slots:** Medications are organized into four customizable periods: Morning, Noon, Evening, and Night.
 
-Intelligent Reminders: If a medication is not marked as "Taken," the system triggers follow-up reminders at 15, 30, and 45-minute intervals.
+### Daily Tracking & Interaction
 
-Auto-Cancellation: Marking a medication as taken automatically cancels pending reminder notifications for that specific dose.
+* **Interactive List:** The "Today" view filters medications based on the current day of the week and active profiles.
+* **Status Toggling:** Medications marked as "Taken" visually change to green with a strikethrough effect.
+* **Undo Capability:** Users can reverse a "Taken" action. This restores the stock count and automatically re-schedules the reminder notification for that dose.
 
-## Inventory & Stock Management
-Real-Time Sync: Uses Firebase Firestore to sync stock levels across all family devices instantly.
+### Smart Notification System
 
-Low Stock Alerts: Visual warning (Red Highlights) when medication stock drops below critical levels (5 units).
+* **Grouped Alerts:** Instead of receiving multiple notifications for different pills at the same time, the system bundles them into a single alert (e.g., "Grandpa, Morning meds: Aspirin, Vitamin C").
+* **Intelligent Follow-ups:** If medications are missed, follow-up reminders trigger at 15 and 30-minute intervals.
+* **Dynamic Content:** If a user takes only one of several medications scheduled for a specific time, the subsequent reminder automatically updates to list only the remaining untaken medicines.
+* **Auto-Cancellation:** Completing all medications for a specific time slot automatically cancels all pending reminders for that slot.
 
-Search Functionality: Filter medication list by name for quick stock checks.
+### Inventory & Stock Management
 
-## Customization
-Flexible Scheduling: Users can define and update specific times for "Morning," "Noon," "Evening," and "Night" doses via the Settings page.
+* **Real-Time Sync:** Utilizes Firebase Firestore to synchronize stock levels across all family devices instantly.
+* **Stock Warnings:** Visual indicators highlight medications when stock drops below user-defined critical levels (e.g., fewer than 10 units).
+* **Search & Filter:** Easily search the medication inventory by name or filter by owner.
 
-CRUD Operations: Add, Edit, and Delete medications with support for multiple daily doses.
+### Customization
 
-## Key Logic Explanation
-Notification Workflow: The app generates a unique base ID for each medication. When a medication is scheduled for multiple times (e.g., Morning and Evening):
+* **Global Time Settings:** Users can define specific hours for "Morning," "Noon," "Evening," and "Night" via the Settings page. Changing these times automatically recalculates and reschedules all existing notifications.
 
-Main Alarm: Triggers at the user-defined time.
+## Technical Architecture & Logic
 
-Follow-up Alarms: Scheduled for +15, +30, and +45 minutes relative to the main alarm.
+### Notification Workflow
 
-Cancellation: When the user taps the "Taken" button, the app calculates the specific IDs for the follow-up alarms and cancels them using flutter_local_notifications, preventing unnecessary disturbance.
+The application uses a sophisticated ID generation and grouping logic to handle notifications without overwhelming the user:
 
-## Tech Stack
-Framework: Flutter (Dart)
+1. **ID Generation:** Unique notification IDs are generated using a hash of the Person, Time Slot, and Day of the Week.
+2. **Bundling:** When a medication is added or edited, the app queries all medications for that specific person and time slot, consolidating them into a single notification payload.
+3. **Dynamic Updates:** When a user interacts with the app (marking a med as taken), the `NotificationService` recalculates the pending list. If items remain, the reminder content is updated; if the list is empty, the reminder group is cancelled.
 
-Backend & Database: Firebase Firestore
+### Tech Stack
 
-Local Storage: shared_preferences (for storing user preferences/time settings)
-
-Notifications: flutter_local_notifications
-
-Time Management: timezone package
+* **Framework:** Flutter (Dart)
+* **Backend & Database:** Firebase Firestore
+* **Local Storage:** shared_preferences (for user time settings and local configurations)
+* **Notifications:** flutter_local_notifications
+* **Time Management:** timezone package
