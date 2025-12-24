@@ -1,58 +1,84 @@
-# Family Medicine Tracker
+# Family Medicine Tracker (Aile İlaç Takip)
 
-A cross-platform mobile application developed with Flutter to assist families in managing daily medication schedules and inventory for multiple members. The app ensures medication adherence through a smart, grouped notification system, flexible scheduling options, and real-time stock tracking tailored for various family roles.
+A cross-platform (iOS & Android) mobile application developed with Flutter to assist families in managing daily medication schedules, inventory, and adherence for multiple members.
 
-## Features
+The app utilizes a **Family Code System** to synchronize data across devices instantly using Firebase, ensuring caregivers and family members are always on the same page.
+
+### Family Ecosystem & Synchronization
+* **Family Code System:** No complex email sign-ups. Users join a family ecosystem simply by entering a unique "Family Code."
+* **Real-Time Sync:** Utilizes **Firebase Firestore** to synchronize profiles, medicines, stock levels, and logs across all devices instantly.
 
 ### User & Role Management
-
 * **Dynamic Profiles:** Create and manage profiles for different family members (e.g., Grandpa, Grandma, Children).
-* **Custom Avatars:** Assign distinct avatars to each profile for quick visual identification throughout the app.
-* **Data Integrity:** Deleting a user profile automatically cleans up all associated medications and cancels pending notifications to prevent orphaned data.
+* **Custom Avatars:** Assign distinct avatars to each profile for quick visual identification.
+* **Data Integrity:** Deleting a user profile safely cleans up associated medications and logs.
 
 ### Advanced Scheduling & Calendar
+* **Flexible Frequencies:** Schedule medications for "Every Day" or specific days (e.g., Mon, Wed, Fri).
+* **Time Slots:** Organized into four customizable periods: **Morning, Noon, Evening, and Night**.
+* **Calendar View:** A weekly overview of all scheduled medications grouped by time slots and family members.
 
-* **Flexible Frequencies:** Medications can be scheduled for "Every Day" or specific days of the week (e.g., Mondays and Thursdays only).
-* **Calendar View:** A dedicated calendar tab provides a weekly overview of all scheduled medications, grouped by time slots and family members.
-* **Time Slots:** Medications are organized into four customizable periods: Morning, Noon, Evening, and Night.
-
-### Daily Tracking & Interaction
-
-* **Interactive List:** The "Today" view filters medications based on the current day of the week and active profiles.
-* **Status Toggling:** Medications marked as "Taken" visually change to green with a strikethrough effect.
-* **Undo Capability:** Users can reverse a "Taken" action. This restores the stock count and automatically re-schedules the reminder notification for that dose.
-
-### Smart Notification System
-
-* **Grouped Alerts:** Instead of receiving multiple notifications for different pills at the same time, the system bundles them into a single alert (e.g., "Grandpa, Morning meds: Aspirin, Vitamin C").
-* **Intelligent Follow-ups:** If medications are missed, follow-up reminders trigger at 15 and 30-minute intervals.
-* **Dynamic Content:** If a user takes only one of several medications scheduled for a specific time, the subsequent reminder automatically updates to list only the remaining untaken medicines.
-* **Auto-Cancellation:** Completing all medications for a specific time slot automatically cancels all pending reminders for that slot.
+### Smart Notification System (Platform Adaptive)
+* **Grouped Alerts:** Bundles multiple medications for the same time slot into a single notification (e.g., "Grandpa: Morning meds (Aspirin, Vitamin C)").
+* **Actionable Reminders:** Notifications remind users specifically of what hasn't been taken yet.
+* **Auto-Cancellation:** Marking meds as taken automatically cancels pending reminders for that specific slot.
 
 ### Inventory & Stock Management
-
-* **Real-Time Sync:** Utilizes Firebase Firestore to synchronize stock levels across all family devices instantly.
-* **Stock Warnings:** Visual indicators highlight medications when stock drops below user-defined critical levels (e.g., fewer than 10 units).
-* **Search & Filter:** Easily search the medication inventory by name or filter by owner.
-
-### Customization
-
-* **Global Time Settings:** Users can define specific hours for "Morning," "Noon," "Evening," and "Night" via the Settings page. Changing these times automatically recalculates and reschedules all existing notifications.
+* **Stock Tracking:** Automatically deducts stock when a medication is marked as "Taken."
+* **Low Stock Warnings:** Visual indicators highlight medications when stock drops below user-defined critical levels.
+* **Undo Capability:** Reversing a "Taken" action restores the stock count and re-activates the schedule.
 
 ## Technical Architecture & Logic
 
-### Notification Workflow
+This application implements **Platform Specific Logic** to handle the differences between Android and iOS execution limitations.
 
-The application uses a sophisticated ID generation and grouping logic to handle notifications without overwhelming the user:
+### Platform Specific Implementation
 
-1. **ID Generation:** Unique notification IDs are generated using a hash of the Person, Time Slot, and Day of the Week.
-2. **Bundling:** When a medication is added or edited, the app queries all medications for that specific person and time slot, consolidating them into a single notification payload.
-3. **Dynamic Updates:** When a user interacts with the app (marking a med as taken), the `NotificationService` recalculates the pending list. If items remain, the reminder content is updated; if the list is empty, the reminder group is cancelled.
+#### Android
+* **Background Execution:** Uses `android_alarm_manager_plus` for precise scheduling.
+* **Intelligent Follow-ups:** If medications are missed, the app wakes up in the background to trigger follow-up alarms at 15, 30, and 45-minute intervals.
+* **Exact Alarms:** Requests `SCHEDULE_EXACT_ALARM` permissions for precise timing.
+
+#### iOS (iPhone)
+* **Standard Notifications:** Uses the native iOS notification system via `flutter_local_notifications`.
+* **Battery Optimization:** Adheres to Apple's background execution policies by bypassing `AndroidAlarmManager` calls to prevent crashes (`MissingPluginException`) and battery drain.
+* **Permissions:** Handles iOS-specific permission requests for Alerts, Badges, and Sounds.
 
 ### Tech Stack
 
 * **Framework:** Flutter (Dart)
-* **Backend & Database:** Firebase Firestore
-* **Local Storage:** shared_preferences (for user time settings and local configurations)
-* **Notifications:** flutter_local_notifications
-* **Time Management:** timezone package
+* **Backend:** Firebase Firestore (NoSQL Database)
+* **Init & Core:** `firebase_core`
+* **Local Storage:** `shared_preferences` (For storing Family Code and local settings)
+* **Notifications:** `flutter_local_notifications`
+* **Android Background:** `android_alarm_manager_plus` (Android only)
+* **Time Management:** `timezone` package
+
+## Installation & Setup
+
+1.  **Clone the repository**
+    ```bash
+    git clone [https://github.com/yourusername/family-medication-tracking.git](https://github.com/yourusername/family-medication-tracking.git)
+    ```
+
+2.  **Install Dependencies**
+    ```bash
+    flutter pub get
+    ```
+
+3.  **Firebase Setup**
+    * **Android:** Place `google-services.json` in `android/app/`.
+    * **iOS:** Place `GoogleService-Info.plist` in `ios/Runner/` via Xcode (Ensure "Target Membership" is checked for Runner).
+
+4.  **iOS Specifics (CocoaPods)**
+    ```bash
+    cd ios
+    rm -rf Pods
+    rm Podfile.lock
+    pod install --repo-update
+    cd ..
+    ```
+
+5.  **Run the App**
+    * **Android:** `flutter run`
+    * **iOS:** `flutter run --release` (Physical device recommended for notifications)
