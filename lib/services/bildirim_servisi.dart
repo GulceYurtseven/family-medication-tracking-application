@@ -5,7 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:typed_data';
 import 'dart:async';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+@pragma('vm:entry-point')
 class BildirimServisi {
   static final BildirimServisi _instance = BildirimServisi._internal();
   factory BildirimServisi() => _instance;
@@ -24,15 +28,22 @@ class BildirimServisi {
     showBadge: true,
   );
 
+// Bu kodu bildirim_servisi.dart dosyanızın init() metoduna ekleyin
+
   Future<void> init() async {
     tz.initializeTimeZones();
     tz.setLocalLocation(tz.getLocation('Europe/Istanbul'));
 
+    // Alarm Manager başlat
+    await AndroidAlarmManager.initialize();
+
+    // Kanal oluştur
     await flutterLocalNotificationsPlugin
         .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(kanal);
 
-    const AndroidInitializationSettings androidAyarlari = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const AndroidInitializationSettings androidAyarlari =
+    AndroidInitializationSettings('@mipmap/ic_launcher');
     const DarwinInitializationSettings iosAyarlari = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
@@ -46,18 +57,34 @@ class BildirimServisi {
 
     await flutterLocalNotificationsPlugin.initialize(baslatmaAyarlari);
 
+    // Android 13+ için bildirim iznini iste
     final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
     flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
 
     if (androidImplementation != null) {
+      // Bildirim izni
+      final bool? notificationResult =
       await androidImplementation.requestNotificationsPermission();
-      await androidImplementation.requestExactAlarmsPermission();
-    }
+      print('📱 Bildirim izni: ${notificationResult ?? false ? "✅ Verildi" : "❌ Reddedildi"}');
 
+      // Tam zamanlanmış alarm izni (Android 12+)
+      final bool? exactAlarmResult =
+      await androidImplementation.requestExactAlarmsPermission();
+      print('⏰ Exact Alarm izni: ${exactAlarmResult ?? false ? "✅ Verildi" : "❌ Reddedildi"}');
+
+      // İzin durumunu kontrol et
+      if (notificationResult == false) {
+        print('⚠️ UYARI: Bildirim izni reddedildi! Kullanıcı ayarlardan açmalı.');
+      }
+
+      if (exactAlarmResult == false) {
+        print('⚠️ UYARI: Exact Alarm izni reddedildi! Zamanlanmış bildirimler çalışmayabilir.');
+      }
+    }
   }
 
-  // 1. ANA VAKİT BİLDİRİMİ (Herkese ortak)
+  // 1. ANA VAKİT BİLDİRİMİ
   Future<void> anaVakitBildirimiKur(String vakit, int saat, int dakika) async {
     int id = 0;
     if (vakit == "Sabah") id = 1;
@@ -73,32 +100,18 @@ class BildirimServisi {
       dakika,
     );
 
-    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    print("📋 ANA BİLDİRİM KURULDU");
-    print("   Vakit: $vakit");
-    print("   Saat: ${saat.toString().padLeft(2,'0')}:${dakika.toString().padLeft(2,'0')}");
-    print("   ID: $id");
-    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    print("┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓");
+    print("📋 ANA BİLDİRİM KURULDU: $vakit ($saat:$dakika)");
   }
 
-  // 2. KİŞİ BAZLI HATIRLATICILAR (3 adet: +15, +30, +45 dk)
+  // 2. KİŞİ BAZLI HATIRLATICILAR
   Future<void> kisiHatirlaticiKur(String vakit, int saat, int dakika) async {
-    // 1. Hatırlatma: +15 dakika
     await _hatirlaticiPlanla(vakit, 1, saat, dakika + 15);
-
-    // 2. Hatırlatma: +30 dakika
     await _hatirlaticiPlanla(vakit, 2, saat, dakika + 30);
-
-    // 3. Hatırlatma: +45 dakika
     await _hatirlaticiPlanla(vakit, 3, saat, dakika + 45);
 
-    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    print("🔔 HATIRLATICILAR KURULDU");
-    print("   Vakit: $vakit");
-    print("   1. Hatırlatma: +15 dk");
-    print("   2. Hatırlatma: +30 dk");
-    print("   3. Hatırlatma: +45 dk");
-    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    print("🔔 HATIRLATICILAR PLANLANDI: $vakit (+15, +30, +45 dk)");
+    print("┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛");
   }
 
   // 3. HATIRLATICI PLANLAMA
@@ -108,7 +121,6 @@ class BildirimServisi {
     int netDakika = dakika % 60;
     int netSaat = (saat + ekSaat) % 24;
 
-    // Hedef zamanı hesapla
     final tz.TZDateTime simdi = tz.TZDateTime.now(tz.local);
     tz.TZDateTime hedefZaman = tz.TZDateTime(
       tz.local,
@@ -121,156 +133,146 @@ class BildirimServisi {
       0,
     );
 
-    // Eğer geçmişte kaldıysa yarına ertele
     if (hedefZaman.isBefore(simdi) || hedefZaman.isAtSameMomentAs(simdi)) {
       hedefZaman = hedefZaman.add(const Duration(days: 1));
     }
 
-    // Benzersiz ID oluştur
-    int vakitOffset = 0;
-    if (vakit == "Sabah") vakitOffset = 100000;
-    if (vakit == "Öğle") vakitOffset = 200000;
-    if (vakit == "Akşam") vakitOffset = 300000;
-    if (vakit == "Gece") vakitOffset = 400000;
+    // Alarm ID Oluşturma
+    int vakitId = 1;
+    if (vakit == "Öğle") vakitId = 2;
+    if (vakit == "Akşam") vakitId = 3;
+    if (vakit == "Gece") vakitId = 4;
 
-    int bildirimId = vakitOffset + hatirlatmaNo;
+    int alarmId = 1000 + (vakitId * 100) + hatirlatmaNo;
 
-    // Bildirim planla (İçerik dummy, gerçek içerik _kontrolleriYap'ta oluşturulacak)
-    /*await flutterLocalNotificationsPlugin.zonedSchedule(
-      bildirimId,
-      "Hatırlatma", // Dummy başlık
-      "Kontrol ediliyor...", // Dummy içerik
+    // AlarmManager ile arka plan callback'i zamanla
+    await AndroidAlarmManager.oneShotAt(
       hedefZaman,
-      NotificationDetails(
-        android: AndroidNotificationDetails(
-          kanal.id,
-          kanal.name,
-          importance: Importance.max,
-          priority: Priority.high,
-          playSound: true,
-          enableVibration: true,
-          onlyAlertOnce: true,
-          color: hatirlatmaNo == 3 ? Colors.red : Colors.orange,
-        ),
-      ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: DateTimeComponents.time,
-    );*/
-
-    // Aynı zamanda kontrol mekanizmasını planla
-    _zamanlanmisKontrolKur(vakit, hatirlatmaNo, hedefZaman);
+      alarmId,
+      _arkaPlanKontrolCallback,
+      exact: true,
+      wakeup: true,
+      rescheduleOnReboot: true,
+      params: {
+        'vakit': vakit,
+        'hatirlatmaNo': hatirlatmaNo,
+      },
+    );
 
     final Duration fark = hedefZaman.difference(simdi);
-    print("   ⏱️ $hatirlatmaNo. Hatırlatma → ${hedefZaman.hour}:${hedefZaman.minute.toString().padLeft(2,'0')} (${fark.inMinutes} dk sonra)");
+    print("   ⏱️ $hatirlatmaNo. Kontrol Alarmı → ${hedefZaman.hour}:${hedefZaman.minute.toString().padLeft(2,'0')} (${fark.inMinutes} dk sonra)");
   }
 
-  // 4. ZAMANLANMIŞ KONTROL MEKANIZMASI
-  void _zamanlanmisKontrolKur(String vakit, int hatirlatmaNo, tz.TZDateTime hedefZaman) {
-    final Duration beklemeSuresi = hedefZaman.difference(tz.TZDateTime.now(tz.local));
+  // 4. ARKA PLAN CALLBACK (Static ve @pragma ile işaretli)
+  @pragma('vm:entry-point')
+  static Future<void> _arkaPlanKontrolCallback(int id, Map<String, dynamic> params) async {
+    String vakit = params['vakit'] ?? '';
+    int hatirlatmaNo = params['hatirlatmaNo'] ?? 0;
 
-    // Timer ile zamanı geldiğinde kontrol yap
-    Timer(beklemeSuresi, () async {
-      print("\n🔍 KONTROL BAŞLADI: $vakit - $hatirlatmaNo. Hatırlatma");
-      await _kontrolleriYapVeBildirimGonder(vakit, hatirlatmaNo);
-    });
-  }
+    print("🚀 ARKA PLAN ALARMI ÇALIŞTI: $vakit - $hatirlatmaNo. Hatırlatma");
 
-  // 5. KRİTİK: İÇİLMEMİŞ İLAÇLARI KONTROL ET VE BİLDİRİM GÖNDER
-  Future<void> _kontrolleriYapVeBildirimGonder(String vakit, int hatirlatmaNo) async {
     try {
-      // Bugünün gününü al
+      // Firebase'i başlat
+      await Firebase.initializeApp();
+
+      // Aile kodunu SharedPreferences'tan al
+      final prefs = await SharedPreferences.getInstance();
+      String? aileKodu = prefs.getString('aile_kodu');
+
+      if (aileKodu == null) {
+        print("   ❌ Aile kodu bulunamadı!");
+        return;
+      }
+
+      // Bugünün günü
       const gunler = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
       String bugun = gunler[DateTime.now().weekday - 1];
 
-      print("   📅 Bugün: $bugun");
+      // Kişileri çek
+      Map<String, String> kisiIdToName = {};
+      QuerySnapshot kisilerSnapshot = await FirebaseFirestore.instance
+          .collection('aileler')
+          .doc(aileKodu)
+          .collection('kisiler')
+          .get();
 
-      // Firestore'dan tüm ilaçları çek
-      QuerySnapshot snapshot = await FirebaseFirestore.instance.collection('ilaclar').get();
+      for (var kisiDoc in kisilerSnapshot.docs) {
+        var kisiData = kisiDoc.data() as Map<String, dynamic>;
+        kisiIdToName[kisiDoc.id] = kisiData['ad'] ?? 'Bilinmeyen';
+      }
 
-      // Kişilere göre içilmemiş ilaçları grupla
+      // İlaçları çek
+      QuerySnapshot snapshot = await FirebaseFirestore.instance
+          .collection('aileler')
+          .doc(aileKodu)
+          .collection('ilaclar')
+          .get();
+
       Map<String, List<String>> kisiIlaclari = {};
 
       for (var doc in snapshot.docs) {
         var data = doc.data() as Map<String, dynamic>;
 
-        // Bu ilaç bugün içilmeli mi? (Gün kontrolü)
+        // Gün kontrolü
         bool herGun = data['her_gun'] ?? true;
-        List<dynamic> gunler = data['gunler'] ?? [];
-        if (!herGun && !gunler.contains(bugun)) {
-          continue;
-        }
+        List<dynamic> gunlerList = data['gunler'] ?? [];
+        if (!herGun && !gunlerList.contains(bugun)) continue;
 
-        // Bu vakitte içilmeli mi? (Vakit kontrolü)
+        // Vakit kontrolü
         List<dynamic> vakitler = data['vakitler'] ?? [];
-        if (!vakitler.contains(vakit)) {
-          continue;
-        }
+        if (!vakitler.contains(vakit)) continue;
 
-        // Bugün bu vakitte içildi mi? (İçilme kontrolü)
+        // İçilme kontrolü
         Map<String, dynamic> icilenTarihler = data['icilen_tarihler'] ?? {};
-        bool bugunIcildi = _bugunIcildiMi(icilenTarihler[vakit]);
+        bool bugunIcildi = _bugunIcildiMiStatic(icilenTarihler[vakit]);
 
-        if (bugunIcildi) {
-          continue; // İçildiyse atla
-        }
+        if (bugunIcildi) continue;
 
-        // İçilmemiş - Listeye ekle
-        String kisi = data['sahibi'] ?? 'Diğer';
+        // Listeye ekle
+        String kisiId = data['kisi_id'] ?? '';
+        String kisiAdi = kisiIdToName[kisiId] ?? 'Bilinmeyen';
         String ilacAdi = data['ad'] ?? '';
 
-        if (!kisiIlaclari.containsKey(kisi)) {
-          kisiIlaclari[kisi] = [];
+        if (!kisiIlaclari.containsKey(kisiAdi)) {
+          kisiIlaclari[kisiAdi] = [];
         }
-        kisiIlaclari[kisi]!.add(ilacAdi);
+        kisiIlaclari[kisiAdi]!.add(ilacAdi);
       }
 
-      print("   📊 İçilmemiş ilaçlar:");
-      kisiIlaclari.forEach((kisi, ilaclar) {
-        print("      • $kisi: ${ilaclar.join(', ')}");
-      });
-
-      // Eğer hiç içilmemiş ilaç yoksa bildirim gönderme
       if (kisiIlaclari.isEmpty) {
-        print("   ✅ Tüm ilaçlar içilmiş, bildirim gönderilmedi.");
-
-        // Dummy bildirimi iptal et
-        int vakitOffset = 0;
-        if (vakit == "Sabah") vakitOffset = 100000;
-        if (vakit == "Öğle") vakitOffset = 200000;
-        if (vakit == "Akşam") vakitOffset = 300000;
-        if (vakit == "Gece") vakitOffset = 400000;
-        await flutterLocalNotificationsPlugin.cancel(vakitOffset + hatirlatmaNo);
-
+        print("   ✅ Tüm ilaçlar içilmiş, bildirim yok.");
         return;
       }
 
-      // Her kişi için ayrı bildirim gönder
+      // BİLDİRİMLERİ GÖNDER
+      final FlutterLocalNotificationsPlugin plugin = FlutterLocalNotificationsPlugin();
+
+      // Plugin'i yeniden başlat (arka plan için gerekli)
+      const AndroidInitializationSettings androidSettings =
+      AndroidInitializationSettings('@mipmap/ic_launcher');
+      const InitializationSettings initSettings =
+      InitializationSettings(android: androidSettings);
+      await plugin.initialize(initSettings);
+
       int kisiIndex = 0;
       for (var entry in kisiIlaclari.entries) {
         String kisi = entry.key;
         List<String> ilaclar = entry.value;
 
-        // Başlık oluştur
         String baslik = hatirlatmaNo == 3
             ? "🚨 SON UYARI - İlaç İçilmedi!"
             : "💊 İlaç Hatırlatması ($hatirlatmaNo/3)";
-
-        // İçerik oluştur: "Filiz, A, B ilacını içtin mi?"
         String ilacListesi = ilaclar.join(", ");
-        String icerik = "$kisi, $ilacListesi ilacını içtin mi? ($hatirlatmaNo. Hatırlatma)";
+        String icerik = "$kisi, $ilacListesi ilacını içtin mi?";
 
-        // Kişi başına benzersiz ID
         int vakitOffset = 0;
         if (vakit == "Sabah") vakitOffset = 500000;
         if (vakit == "Öğle") vakitOffset = 600000;
         if (vakit == "Akşam") vakitOffset = 700000;
         if (vakit == "Gece") vakitOffset = 800000;
-
         int bildirimId = vakitOffset + (hatirlatmaNo * 100) + kisiIndex;
 
-        // Bildirimi gönder
-        await flutterLocalNotificationsPlugin.show(
+        await plugin.show(
           bildirimId,
           baslik,
           icerik,
@@ -285,7 +287,7 @@ class BildirimServisi {
               playSound: true,
               enableVibration: true,
               vibrationPattern: Int64List.fromList([0, 500, 200, 500]),
-              onlyAlertOnce: true,
+              onlyAlertOnce: false,
               color: hatirlatmaNo == 3 ? Colors.red : Colors.orange,
               ledColor: const Color(0xFFFF0000),
               ledOnMs: 1000,
@@ -296,19 +298,18 @@ class BildirimServisi {
         );
 
         print("   📲 Bildirim gönderildi: $kisi → $ilacListesi");
-
         kisiIndex++;
       }
 
-      print("   ✅ Toplam ${kisiIlaclari.length} kişiye bildirim gönderildi.\n");
+      print("   ✅ Toplam ${kisiIlaclari.length} kişiye bildirim gönderildi.");
 
     } catch (e) {
-      print("   ❌ Hata: $e\n");
+      print("   ❌ Arka plan callback hatası: $e");
     }
   }
 
-  // Bugün içildi mi kontrolü
-  bool _bugunIcildiMi(dynamic timestamp) {
+  // Bugün içildi mi kontrolü (Static metod - callback için)
+  static bool _bugunIcildiMiStatic(dynamic timestamp) {
     if (timestamp == null) return false;
     DateTime simdi = DateTime.now();
     DateTime kayit = (timestamp as Timestamp).toDate();
@@ -317,7 +318,7 @@ class BildirimServisi {
         simdi.day == kayit.day;
   }
 
-  // YARDIMCI: Basit bildirim planlama
+  // ANA BİLDİRİM PLANLAMA
   Future<void> _bildirimPlanla(int id, String baslik, String icerik, int saat, int dakika) async {
     int ekSaat = dakika ~/ 60;
     int netDakika = dakika % 60;
@@ -362,6 +363,6 @@ class BildirimServisi {
     );
 
     final Duration fark = hedefZaman.difference(simdi);
-    print("   ⏰ Bildirim → ${hedefZaman.hour}:${hedefZaman.minute.toString().padLeft(2,'0')} (${fark.inMinutes} dk sonra)");
+    print("   ⏰ Ana Bildirim → ${hedefZaman.hour}:${hedefZaman.minute.toString().padLeft(2,'0')} (${fark.inMinutes} dk sonra)");
   }
 }

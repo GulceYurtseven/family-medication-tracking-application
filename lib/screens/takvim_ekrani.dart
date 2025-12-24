@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../services/kisi_yoneticisi.dart'; // EMOJİLER İÇİN EKLENDİ
+import '../services/aile_yoneticisi.dart';
 
 class TakvimEkrani extends StatefulWidget {
   const TakvimEkrani({super.key});
@@ -10,39 +10,86 @@ class TakvimEkrani extends StatefulWidget {
 }
 
 class _TakvimEkraniState extends State<TakvimEkrani> {
-  final List<String> _gunler = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
+  final _yonetici = AileYoneticisi();
+  final List<String> _gunler = [
+    "Pazartesi",
+    "Salı",
+    "Çarşamba",
+    "Perşembe",
+    "Cuma",
+    "Cumartesi",
+    "Pazar"
+  ];
   final List<String> _vakitler = ["Sabah", "Öğle", "Akşam", "Gece"];
   String _secilenGun = "Pazartesi";
+
+  // Kişi bilgilerini cache'leyeceğiz
+  Map<String, Map<String, String>> _kisiCache = {};
 
   @override
   void initState() {
     super.initState();
     int bugun = DateTime.now().weekday;
     _secilenGun = _gunler[bugun - 1];
+    _kisileriYukle();
+  }
+
+  void _kisileriYukle() async {
+    String? aileKodu = _yonetici.aktifAileKodu;
+    if (aileKodu == null) return;
+
+    QuerySnapshot snapshot = await FirebaseFirestore.instance
+        .collection('aileler')
+        .doc(aileKodu)
+        .collection('kisiler')
+        .get();
+
+    setState(() {
+      _kisiCache = {
+        for (var doc in snapshot.docs)
+          doc.id: {
+            'ad': (doc.data() as Map<String, dynamic>)['ad'] ?? 'Bilinmeyen',
+            'emoji': (doc.data() as Map<String, dynamic>)['emoji'] ?? '👤',
+          }
+      };
+    });
   }
 
   IconData _vakitIkonu(String vakit) {
     switch (vakit) {
-      case 'Sabah': return Icons.wb_twilight;
-      case 'Öğle': return Icons.wb_sunny;
-      case 'Akşam': return Icons.nights_stay;
-      case 'Gece': return Icons.bed;
-      default: return Icons.access_time;
+      case 'Sabah':
+        return Icons.wb_twilight;
+      case 'Öğle':
+        return Icons.wb_sunny;
+      case 'Akşam':
+        return Icons.nights_stay;
+      case 'Gece':
+        return Icons.bed;
+      default:
+        return Icons.access_time;
     }
   }
 
   Color _vakitRengi(String vakit) {
     switch (vakit) {
-      case 'Sabah': return Colors.orange;
-      case 'Öğle': return Colors.yellow.shade800;
-      case 'Akşam': return Colors.indigo;
-      case 'Gece': return Colors.purple;
-      default: return Colors.grey;
+      case 'Sabah':
+        return Colors.orange;
+      case 'Öğle':
+        return Colors.yellow.shade800;
+      case 'Akşam':
+        return Colors.indigo;
+      case 'Gece':
+        return Colors.purple;
+      default:
+        return Colors.grey;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Takip edilen kişiler
+    List<String> takipEdilenler = _yonetici.takipEdilenKisiler;
+
     return Column(
       children: [
         // GÜN SEÇİCİ
@@ -50,7 +97,9 @@ class _TakvimEkraniState extends State<TakvimEkrani> {
           height: 90,
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            gradient: LinearGradient(colors: [Colors.teal.shade400, Colors.teal.shade700]),
+            gradient: LinearGradient(
+              colors: [Colors.teal.shade400, Colors.teal.shade700],
+            ),
           ),
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
@@ -69,18 +118,39 @@ class _TakvimEkraniState extends State<TakvimEkrani> {
                   decoration: BoxDecoration(
                     color: secili ? Colors.white : Colors.white.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(15),
-                    border: bugunMu ? Border.all(color: Colors.amber, width: 3) : null,
+                    border: bugunMu
+                        ? Border.all(color: Colors.amber, width: 3)
+                        : null,
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(gun.substring(0, 3), style: TextStyle(color: secili ? Colors.teal.shade700 : Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                      Text(
+                        gun.substring(0, 3),
+                        style: TextStyle(
+                          color: secili ? Colors.teal.shade700 : Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       if (bugunMu)
                         Container(
                           margin: const EdgeInsets.only(top: 4),
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(color: Colors.amber, borderRadius: BorderRadius.circular(8)),
-                          child: const Text("Bugün", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.amber,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            "Bugün",
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                     ],
                   ),
@@ -92,10 +162,15 @@ class _TakvimEkraniState extends State<TakvimEkrani> {
 
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance.collection('ilaclar').snapshots(),
+            stream: _yonetici.takipEdilenIlaclariGetir(),
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Text("İlaç yok."));
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return const Center(child: Text("İlaç yok."));
+              }
 
               // O güne ait ilaçları filtrele
               var gunlukIlaclar = snapshot.data!.docs.where((doc) {
@@ -105,7 +180,11 @@ class _TakvimEkraniState extends State<TakvimEkrani> {
                 return herGun || gunler.contains(_secilenGun);
               }).toList();
 
-              if (gunlukIlaclar.isEmpty) return Center(child: Text("$_secilenGun günü için ilaç yok."));
+              if (gunlukIlaclar.isEmpty) {
+                return Center(
+                  child: Text("$_secilenGun günü için ilaç yok."),
+                );
+              }
 
               return ListView.builder(
                 padding: const EdgeInsets.all(16),
@@ -122,13 +201,21 @@ class _TakvimEkraniState extends State<TakvimEkrani> {
 
                   if (vakitIlaclari.isEmpty) return const SizedBox.shrink();
 
-                  // KİŞİLERE GÖRE GRUPLA
+                  // KİŞİLERE GÖRE GRUPLA (sadece takip edilenler)
                   Map<String, List<DocumentSnapshot>> kisiGruplari = {};
                   for (var doc in vakitIlaclari) {
-                    String sahibi = (doc.data() as Map<String, dynamic>)['sahibi'] ?? 'Diğer';
-                    if (!kisiGruplari.containsKey(sahibi)) kisiGruplari[sahibi] = [];
-                    kisiGruplari[sahibi]!.add(doc);
+                    String kisiId = (doc.data() as Map<String, dynamic>)['kisi_id'] ?? '';
+
+                    // Takip edilmeyen kişileri atla
+                    if (!takipEdilenler.contains(kisiId)) continue;
+
+                    if (!kisiGruplari.containsKey(kisiId)) {
+                      kisiGruplari[kisiId] = [];
+                    }
+                    kisiGruplari[kisiId]!.add(doc);
                   }
+
+                  if (kisiGruplari.isEmpty) return const SizedBox.shrink();
 
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -146,15 +233,23 @@ class _TakvimEkraniState extends State<TakvimEkrani> {
                           children: [
                             Icon(_vakitIkonu(vakit), color: _vakitRengi(vakit)),
                             const SizedBox(width: 8),
-                            Text(vakit, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: _vakitRengi(vakit))),
+                            Text(
+                              vakit,
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: _vakitRengi(vakit),
+                              ),
+                            ),
                           ],
                         ),
                       ),
 
                       // Kişiler ve İlaçları
                       ...kisiGruplari.entries.map((entry) {
-                        String kisi = entry.key;
-                        String emoji = KisiYoneticisi().emojiGetir(kisi) ?? "👤";
+                        String kisiId = entry.key;
+                        String emoji = _kisiCache[kisiId]?['emoji'] ?? '👤';
+                        String kisiAdi = _kisiCache[kisiId]?['ad'] ?? 'Bilinmeyen';
                         List<DocumentSnapshot> ilaclar = entry.value;
 
                         return Padding(
@@ -167,7 +262,14 @@ class _TakvimEkraniState extends State<TakvimEkrani> {
                                 children: [
                                   Text(emoji, style: const TextStyle(fontSize: 18)),
                                   const SizedBox(width: 4),
-                                  Text(kisi, style: TextStyle(fontWeight: FontWeight.bold, fontSize : 22 ,color: Colors.teal.shade800)),
+                                  Text(
+                                    kisiAdi,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 22,
+                                      color: Colors.teal.shade800,
+                                    ),
+                                  ),
                                 ],
                               ),
                               // İlaç Kartları
@@ -177,11 +279,26 @@ class _TakvimEkraniState extends State<TakvimEkrani> {
                                   margin: const EdgeInsets.symmetric(vertical: 4),
                                   color: Colors.green[100],
                                   child: ListTile(
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 0,
+                                    ),
                                     visualDensity: VisualDensity.compact,
-                                    title: Text(data['ad'], style: TextStyle(fontWeight: FontWeight.bold) ),
-                                    subtitle: Text("${data['stok']} adet • ${data['kullanim_sekli']}" , style: TextStyle(color:Colors.black)),
-                                    trailing: const Icon(Icons.medication, size: 20, color: Colors.teal),
+                                    title: Text(
+                                      data['ad'],
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      "${data['stok']} adet • ${data['kullanim_sekli']}",
+                                      style: const TextStyle(color: Colors.black),
+                                    ),
+                                    trailing: const Icon(
+                                      Icons.medication,
+                                      size: 20,
+                                      color: Colors.teal,
+                                    ),
                                   ),
                                 );
                               }),

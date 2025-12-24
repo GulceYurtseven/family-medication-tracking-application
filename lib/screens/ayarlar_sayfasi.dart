@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/zaman_yoneticisi.dart';
 import '../services/bildirim_servisi.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AyarlarSayfasi extends StatefulWidget {
   const AyarlarSayfasi({super.key});
